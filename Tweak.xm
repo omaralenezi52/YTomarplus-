@@ -242,7 +242,10 @@ static inline UIColor *OmarPurple(void) {
 // إخفاء بانر/طبقات الإعلان في العرض
 %hook YTMainAppVideoPlayerOverlayViewController
 - (void)setEligibleForAds:(BOOL)eligible {
-    if (OmarPref(kKeyBlockAds)) { %orig(NO); return; }
+    if (OmarPref(kKeyBlockAds)) {
+        %orig(NO);
+        return;
+    }
     %orig;
 }
 %end
@@ -278,7 +281,7 @@ static inline UIColor *OmarPurple(void) {
         // نمنع تعطيل الجلسة الصوتية للسماح بالخلفية
         return YES;
     }
-    return %orig;
+    return %orig(active, error);
 }
 %end
 
