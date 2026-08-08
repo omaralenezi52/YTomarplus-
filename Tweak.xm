@@ -420,4 +420,28 @@ static inline UIColor *OmarPurple(void) {
     if (![d objectForKey:kKeyHideShorts]) [d setBool:NO forKey:kKeyHideShorts];
     if (![d objectForKey:kKeyNoAutoplay]) [d setBool:NO forKey:kKeyNoAutoplay];
     [d synchronize];
+
+    // ---------- تنبيه تشخيصي: يثبت أن إضافة عمرشوف تُحمّل فعلاً ----------
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        UIWindow *keyWindow = nil;
+        for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                for (UIWindow *w in ((UIWindowScene *)scene).windows) {
+                    if (w.isKeyWindow) { keyWindow = w; break; }
+                }
+            }
+            if (keyWindow) break;
+        }
+        UIViewController *root = keyWindow.rootViewController;
+        while (root.presentedViewController) root = root.presentedViewController;
+        if (!root) return;
+        UIAlertController *a =
+            [UIAlertController alertControllerWithTitle:@"عمرشوف ✅"
+                                                message:@"الإضافة تعمل. افتح: الإعدادات ← قسم «عمرشوف»"
+                                         preferredStyle:UIAlertControllerStyleAlert];
+        [a addAction:[UIAlertAction actionWithTitle:@"تمام"
+                                              style:UIAlertActionStyleDefault handler:nil]];
+        [root presentViewController:a animated:YES completion:nil];
+    });
 }
