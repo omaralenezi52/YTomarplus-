@@ -10,8 +10,8 @@
 
 // ---------- إعدادات المطور (عدّلها من هنا) ----------
 static NSString *const kDevName      = @"عمر شوف";
-static NSString *const kTelegramUser = @"omarshof";                 // بدون @
-static NSString *const kTelegramURL  = @"https://t.me/omarshof";    // الرابط الكامل
+static NSString *const kTelegramUser = @"o5252i";                 // بدون @
+static NSString *const kTelegramURL  = @"https://t.me/o5252i";    // الرابط الكامل
 
 // ---------- مفاتيح الحفظ ----------
 static NSString *const kKeyBlockAds   = @"omar_block_ads";

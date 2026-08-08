@@ -1,7 +1,7 @@
 <h1 align="center">🟣 YTOmarPlus — تعديل يوتيوب</h1>
 <p align="center"><b>المطور: عمر شوف</b></p>
 <p align="center">
-  <a href="https://t.me/omarshof">تيليجرام: @omarshof</a>
+  <a href="https://t.me/o5252i">تيليجرام: @o5252i</a>
 </p>
 
 ---
