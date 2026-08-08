@@ -27,6 +27,41 @@
 @interface YTMainAppVideoPlayerOverlayView : UIView
 @end
 
+// ---------- واجهة إعدادات يوتيوب الرسمية (لحقن قسم عمرشوف) ----------
+@interface YTSettingsSectionItem : NSObject
++ (instancetype)itemWithTitle:(NSString *)title
+             titleDescription:(NSString *)titleDescription
+      accessibilityIdentifier:(NSString *)accessibilityIdentifier
+              detailTextBlock:(id)detailTextBlock
+                  selectBlock:(BOOL (^)(id cell, NSUInteger index))selectBlock;
+@end
+
+@interface YTSettingsViewController : UIViewController
+- (void)setSectionItems:(NSArray *)sectionItems
+            forCategory:(NSInteger)category
+                  title:(NSString *)title
+       titleDescription:(NSString *)titleDescription
+           headerHidden:(BOOL)headerHidden;
+- (void)reloadData;
+@end
+
+@interface YTAppSettingsPresentationData : NSObject
++ (NSArray *)settingsCategoryOrder;
+@end
+
+@interface YTSettingsSectionItemManager : NSObject
+- (id)valueForKey:(NSString *)key;
+@end
+
+// استجابة المشغّل (لتجريد الإعلانات من المصدر)
+@interface YTIPlayerResponse : NSObject
+- (id)adPlacements;
+- (id)adSlots;
+@end
+
+// رقم فئة فريد لقسم عمرشوف داخل الإعدادات
+#define OMAR_SETTINGS_CATEGORY 976264
+
 // ---------- إعدادات المطور (عدّلها من هنا) ----------
 static NSString *const kDevName      = @"عمرشوف";
 static NSString *const kTelegramUser = @"o5252i";                 // بدون @
@@ -35,6 +70,8 @@ static NSString *const kTelegramURL  = @"https://t.me/o5252i";    // الراب�
 // ---------- مفاتيح الحفظ ----------
 static NSString *const kKeyBlockAds   = @"omar_block_ads";
 static NSString *const kKeyBackground = @"omar_background_play";
+static NSString *const kKeyHideShorts = @"omar_hide_shorts";
+static NSString *const kKeyNoAutoplay = @"omar_no_autoplay";
 
 static inline BOOL OmarPref(NSString *key) {
     return [[NSUserDefaults standardUserDefaults] boolForKey:key];
@@ -103,8 +140,20 @@ static inline UIColor *OmarPurple(void) {
                                    key:kKeyBackground
                              switchOut:&_bgSwitch
                                 action:@selector(toggleBg:)];
+    // ----- صف: إخفاء الشورتس -----
+    UIView *shortsRow = [self rowWithTitle:@"إخفاء الشورتس"
+                                  subtitle:@"إزالة قسم Shorts من الواجهة"
+                                       key:kKeyHideShorts
+                                 switchOut:nil
+                                    action:@selector(toggleShorts:)];
+    // ----- صف: تعطيل التشغيل التلقائي -----
+    UIView *autoRow = [self rowWithTitle:@"تعطيل التشغيل التلقائي"
+                                subtitle:@"إيقاف تشغيل الفيديو التالي تلقائياً"
+                                     key:kKeyNoAutoplay
+                               switchOut:nil
+                                  action:@selector(toggleAutoplay:)];
 
-    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[adsRow, bgRow]];
+    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[adsRow, bgRow, shortsRow, autoRow]];
     stack.translatesAutoresizingMaskIntoConstraints = NO;
     stack.axis = UILayoutConstraintAxisVertical;
     stack.spacing = 14;
@@ -146,7 +195,7 @@ static inline UIColor *OmarPurple(void) {
         [stack.topAnchor constraintEqualToAnchor:header.bottomAnchor constant:24],
         [stack.leadingAnchor constraintEqualToAnchor:g.leadingAnchor constant:16],
         [stack.trailingAnchor constraintEqualToAnchor:g.trailingAnchor constant:-16],
-        [stack.heightAnchor constraintEqualToConstant:168],
+        [stack.heightAnchor constraintEqualToConstant:336],
 
         [tgBtn.topAnchor constraintEqualToAnchor:stack.bottomAnchor constant:24],
         [tgBtn.leadingAnchor constraintEqualToAnchor:g.leadingAnchor constant:16],
@@ -205,8 +254,10 @@ static inline UIColor *OmarPurple(void) {
     return row;
 }
 
-- (void)toggleAds:(UISwitch *)sw   { OmarSetPref(kKeyBlockAds, sw.on); }
-- (void)toggleBg:(UISwitch *)sw    { OmarSetPref(kKeyBackground, sw.on); }
+- (void)toggleAds:(UISwitch *)sw       { OmarSetPref(kKeyBlockAds, sw.on); }
+- (void)toggleBg:(UISwitch *)sw        { OmarSetPref(kKeyBackground, sw.on); }
+- (void)toggleShorts:(UISwitch *)sw    { OmarSetPref(kKeyHideShorts, sw.on); }
+- (void)toggleAutoplay:(UISwitch *)sw  { OmarSetPref(kKeyNoAutoplay, sw.on); }
 
 - (void)openTelegram {
     [[UIApplication sharedApplication] openURL:[NSURL URLWithString:kTelegramURL]
@@ -215,50 +266,79 @@ static inline UIColor *OmarPurple(void) {
 @end
 
 // =============================================================
-//  حقن خانة واحدة داخل إعدادات يوتيوب تفتح قائمة عمرشوف
-//  (نعتمد على أن إعدادات يوتيوب UITableViewController؛
-//   نضيف زر في شريط التنقل يفتح القائمة — طريقة آمنة لا تكسر الجدول)
+//  حقن قسم «عمرشوف» داخل قائمة إعدادات يوتيوب (الطريقة الرسمية)
+//  يعمل مع شاشة الإعدادات الحديثة (YTSettingsPickerViewController)
 // =============================================================
-@interface YTSettingsViewController : UIViewController
-@end
 
-%hook YTSettingsViewController
-- (void)viewDidLoad {
-    %orig;
-    UIBarButtonItem *item =
-        [[UIBarButtonItem alloc] initWithTitle:@"عمرشوف"
-                                         style:UIBarButtonItemStyleDone
-                                        target:self
-                                        action:@selector(omar_openMenu)];
-    item.tintColor = OmarPurple();
-    self.navigationItem.rightBarButtonItem = item;
-}
-
-%new
-- (void)omar_openMenu {
-    OmarPlusMenuVC *vc = [[OmarPlusMenuVC alloc] init];
-    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
-    nav.modalPresentationStyle = UIModalPresentationFormSheet;
-    [self presentViewController:nav animated:YES completion:nil];
+// 1) نضيف فئة عمرشوف إلى ترتيب أقسام الإعدادات
+%hook YTAppSettingsPresentationData
++ (NSArray *)settingsCategoryOrder {
+    NSArray *order = %orig;
+    if (![order isKindOfClass:[NSArray class]]) return order;
+    NSMutableArray *m = [order mutableCopy];
+    NSNumber *cat = @(OMAR_SETTINGS_CATEGORY);
+    if (![m containsObject:cat]) {
+        [m insertObject:cat atIndex:0];   // في الأعلى
+    }
+    return m;
 }
 %end
 
-// =============================================================
-//  ميزة: حذف الإعلانات
-//  إخفاء عناصر واجهة الإعلانات المعروفة في يوتيوب
-// =============================================================
+// 2) نملأ محتوى قسم عمرشوف عند بنائه
+%hook YTSettingsSectionItemManager
+- (void)updateSectionForCategory:(NSUInteger)category withEntry:(id)entry {
+    if (category == OMAR_SETTINGS_CATEGORY) {
+        YTSettingsViewController *settingsVC = [self valueForKey:@"_settingsViewController"];
 
-// إعلانات المشغّل (طبقات الإعلان)
-%hook YTPlayerViewController
-- (void)loadWithPlayerTransition:(id)transition playbackData:(id)data {
-    if (OmarPref(kKeyBlockAds)) {
-        // نترك التشغيل الطبيعي؛ الإخفاء البصري يتم عبر hooks أدناه
+        YTSettingsSectionItem *item = [%c(YTSettingsSectionItem)
+            itemWithTitle:@"عمرشوف"
+            titleDescription:@"حذف الإعلانات، التشغيل بالخلفية والمزيد"
+            accessibilityIdentifier:nil
+            detailTextBlock:nil
+            selectBlock:^BOOL(id cell, NSUInteger index) {
+                OmarPlusMenuVC *menu = [[OmarPlusMenuVC alloc] init];
+                if (settingsVC.navigationController) {
+                    [settingsVC.navigationController pushViewController:menu animated:YES];
+                } else {
+                    UINavigationController *nav =
+                        [[UINavigationController alloc] initWithRootViewController:menu];
+                    nav.modalPresentationStyle = UIModalPresentationFormSheet;
+                    [settingsVC presentViewController:nav animated:YES completion:nil];
+                }
+                return YES;
+            }];
+
+        [settingsVC setSectionItems:@[item]
+                        forCategory:OMAR_SETTINGS_CATEGORY
+                              title:@"عمرشوف"
+                   titleDescription:nil
+                       headerHidden:NO];
+        return;
     }
     %orig;
 }
 %end
 
-// إخفاء بانر/طبقات الإعلان في العرض
+// =============================================================
+//  ميزة: حذف الإعلانات
+//  (1) تجريد الإعلانات من مصدر استجابة المشغّل — الأقوى
+//  (2) منع أهلية الإعلانات في طبقة العرض
+//  (3) إخفاء خلايا الإعلانات في الخلاصة
+// =============================================================
+
+// (1) المصدر: نُفرّغ قوائم الإعلانات فلا يبدأ إعلان الفيديو أصلاً
+%hook YTIPlayerResponse
+- (id)adPlacements {
+    if (OmarPref(kKeyBlockAds)) return @[];
+    return %orig;
+}
+- (id)adSlots {
+    if (OmarPref(kKeyBlockAds)) return @[];
+    return %orig;
+}
+%end
+
+// (2) طبقة العرض: نمنع اعتبار المقطع مؤهلاً للإعلان
 %hook YTMainAppVideoPlayerOverlayViewController
 - (void)setEligibleForAds:(BOOL)eligible {
     if (OmarPref(kKeyBlockAds)) {
@@ -269,7 +349,7 @@ static inline UIColor *OmarPurple(void) {
 }
 %end
 
-// اعتراض عناصر خلاصة الإعلانات في الصفحة الرئيسية
+// (3) خلاصة الإعلانات في الصفحة الرئيسية
 %hook YTAdsInnerCellController
 - (void)viewDidLoad {
     %orig;
@@ -282,29 +362,51 @@ static inline UIColor *OmarPurple(void) {
 
 // =============================================================
 //  ميزة: التشغيل بالخلفية
-//  إبقاء الجلسة الصوتية نشطة وإخبار المشغّل بالاستمرار في الخلفية
+//  نُبقي الجلسة الصوتية نشطة ونمنع تعطيلها عند الذهاب للخلفية
 // =============================================================
-%hook YTPlayerView
-- (void)didMoveToWindow {
-    %orig;
-    if (OmarPref(kKeyBackground)) {
-        // نضمن بقاء الصوت عند مغادرة التطبيق للخلفية
-    }
-}
-%end
-
 %hook AVAudioSession
 - (BOOL)setActive:(BOOL)active error:(NSError **)error {
     if (OmarPref(kKeyBackground) && !active) {
-        // نمنع تعطيل الجلسة الصوتية للسماح بالخلفية
+        // نتجاهل طلب تعطيل الجلسة للسماح باستمرار الصوت في الخلفية
         return YES;
     }
     return %orig(active, error);
 }
+- (BOOL)setCategory:(NSString *)category error:(NSError **)error {
+    if (OmarPref(kKeyBackground)) {
+        return %orig(AVAudioSessionCategoryPlayback, error);
+    }
+    return %orig;
+}
 %end
 
-// عند انتقال التطبيق للخلفية نبقي المشغّل شغّال
-%hook YTMainAppVideoPlayerOverlayView
+// =============================================================
+//  ميزة: إخفاء الشورتس
+//  نخفي عناصر واجهة Shorts عند بنائها
+// =============================================================
+%hook ASNodeController
+- (void)_didLoadNode:(id)node {
+    %orig;
+    if (OmarPref(kKeyHideShorts)) {
+        @try {
+            UIView *v = [node isKindOfClass:[UIView class]] ? node : [node valueForKey:@"view"];
+            NSString *desc = [v description] ?: @"";
+            if ([desc containsString:@"Shorts"] || [desc containsString:@"shorts"]) {
+                v.hidden = YES;
+            }
+        } @catch (__unused NSException *e) {}
+    }
+}
+%end
+
+// =============================================================
+//  ميزة: تعطيل التشغيل التلقائي
+// =============================================================
+%hook YTPlayerViewController
+- (BOOL)isAutoplayEnabled {
+    if (OmarPref(kKeyNoAutoplay)) return NO;
+    return %orig;
+}
 %end
 
 %ctor {
@@ -312,5 +414,8 @@ static inline UIColor *OmarPurple(void) {
     NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
     if (![d objectForKey:kKeyBlockAds])   [d setBool:YES forKey:kKeyBlockAds];
     if (![d objectForKey:kKeyBackground]) [d setBool:YES forKey:kKeyBackground];
+    // الميزات الإضافية مطفأة افتراضياً
+    if (![d objectForKey:kKeyHideShorts]) [d setBool:NO forKey:kKeyHideShorts];
+    if (![d objectForKey:kKeyNoAutoplay]) [d setBool:NO forKey:kKeyNoAutoplay];
     [d synchronize];
 }
