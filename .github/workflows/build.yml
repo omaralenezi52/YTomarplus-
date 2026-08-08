@@ -13,29 +13,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Theos
-        uses: actions/checkout@v4
-        with:
-          repository: theos/theos
-          path: theos
-          submodules: recursive
+        uses: Randomblock1/theos-action@v1
 
-      - name: Install dependencies
-        run: |
-          brew install ldid dpkg make
+      - name: Build (rootless)
+        run: make package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1
 
-      - name: Get iOS SDK
-        run: |
-          cd theos/sdks
-          curl -L https://github.com/theos/sdks/archive/master.zip -o sdks.zip
-          unzip -q sdks.zip
-          mv sdks-master/*.sdk . || true
-
-      - name: Build package
-        env:
-          THEOS: ${{ github.workspace }}/theos
-        run: |
-          make package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1
-          make package FINALPACKAGE=1 || true
+      - name: Build (rootful)
+        run: make package FINALPACKAGE=1
 
       - name: Upload .deb artifacts
         uses: actions/upload-artifact@v4
