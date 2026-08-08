@@ -411,6 +411,97 @@ static inline UIColor *OmarPurple(void) {
 }
 %end
 
+// =============================================================
+//  الزر العائم «عمرشوف» — نقطة دخول مضمونة بدون هوكينق
+//  يُبنى مباشرة عبر UIWindow مستقل، فيظهر حتى لو تعذّر حقن الإعدادات
+// =============================================================
+static UIWindow *gOmarFloatWindow = nil;
+
+@interface OmarFloatController : UIViewController
+@end
+
+@implementation OmarFloatController
+- (void)loadView {
+    self.view = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 66, 66)];
+    self.view.backgroundColor = [UIColor clearColor];
+
+    UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
+    btn.frame = CGRectMake(0, 0, 66, 66);
+    btn.backgroundColor = OmarPurple();
+    btn.layer.cornerRadius = 33;
+    btn.layer.shadowColor = [UIColor blackColor].CGColor;
+    btn.layer.shadowOpacity = 0.4;
+    btn.layer.shadowRadius = 6;
+    btn.layer.shadowOffset = CGSizeMake(0, 2);
+    [btn setTitle:@"عمر" forState:UIControlStateNormal];
+    [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    btn.titleLabel.font = [UIFont boldSystemFontOfSize:17];
+    [btn addTarget:self action:@selector(openMenu) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:btn];
+
+    UIPanGestureRecognizer *pan =
+        [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
+    [self.view addGestureRecognizer:pan];
+}
+
+- (void)handlePan:(UIPanGestureRecognizer *)pan {
+    CGPoint t = [pan translationInView:nil];
+    CGRect f = gOmarFloatWindow.frame;
+    f.origin.x += t.x;
+    f.origin.y += t.y;
+    gOmarFloatWindow.frame = f;
+    [pan setTranslation:CGPointZero inView:nil];
+}
+
+- (void)openMenu {
+    OmarPlusMenuVC *menu = [[OmarPlusMenuVC alloc] init];
+    UINavigationController *nav =
+        [[UINavigationController alloc] initWithRootViewController:menu];
+    nav.modalPresentationStyle = UIModalPresentationFullScreen;
+
+    UIBarButtonItem *close =
+        [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                                                      target:self
+                                                      action:@selector(dismissMenu)];
+    menu.navigationItem.leftBarButtonItem = close;
+    [self presentViewController:nav animated:YES completion:nil];
+}
+
+- (void)dismissMenu {
+    [self dismissViewControllerAnimated:YES completion:nil];
+}
+@end
+
+static void OmarTryShowFloatingButton(int attemptsLeft) {
+    if (gOmarFloatWindow) return;
+    UIWindowScene *scene = nil;
+    for (UIScene *s in [UIApplication sharedApplication].connectedScenes) {
+        if ([s isKindOfClass:[UIWindowScene class]] &&
+            s.activationState == UISceneActivationStateForegroundActive) {
+            scene = (UIWindowScene *)s;
+            break;
+        }
+    }
+    if (!scene) {
+        if (attemptsLeft > 0) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), ^{ OmarTryShowFloatingButton(attemptsLeft - 1); });
+        }
+        return;
+    }
+    gOmarFloatWindow = [[UIWindow alloc] initWithWindowScene:scene];
+    gOmarFloatWindow.frame = CGRectMake(18, 140, 66, 66);
+    gOmarFloatWindow.windowLevel = UIWindowLevelAlert + 10;
+    gOmarFloatWindow.backgroundColor = [UIColor clearColor];
+    gOmarFloatWindow.rootViewController = [[OmarFloatController alloc] init];
+    gOmarFloatWindow.hidden = NO;
+}
+
+static void OmarScheduleFloatingButton(void) {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{ OmarTryShowFloatingButton(8); });
+}
+
 %ctor {
     // قيم افتراضية عند أول تشغيل
     NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
@@ -421,27 +512,6 @@ static inline UIColor *OmarPurple(void) {
     if (![d objectForKey:kKeyNoAutoplay]) [d setBool:NO forKey:kKeyNoAutoplay];
     [d synchronize];
 
-    // ---------- تنبيه تشخيصي: يثبت أن إضافة عمرشوف تُحمّل فعلاً ----------
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        UIWindow *keyWindow = nil;
-        for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
-            if ([scene isKindOfClass:[UIWindowScene class]]) {
-                for (UIWindow *w in ((UIWindowScene *)scene).windows) {
-                    if (w.isKeyWindow) { keyWindow = w; break; }
-                }
-            }
-            if (keyWindow) break;
-        }
-        UIViewController *root = keyWindow.rootViewController;
-        while (root.presentedViewController) root = root.presentedViewController;
-        if (!root) return;
-        UIAlertController *a =
-            [UIAlertController alertControllerWithTitle:@"عمرشوف ✅"
-                                                message:@"الإضافة تعمل. افتح: الإعدادات ← قسم «عمرشوف»"
-                                         preferredStyle:UIAlertControllerStyleAlert];
-        [a addAction:[UIAlertAction actionWithTitle:@"تمام"
-                                              style:UIAlertActionStyleDefault handler:nil]];
-        [root presentViewController:a animated:YES completion:nil];
-    });
+    // نضمن ظهور زر عمرشوف العائم بعد إقلاع الواجهة (بدون هوكينق)
+    OmarScheduleFloatingButton();
 }
