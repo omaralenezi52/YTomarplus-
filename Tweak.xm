@@ -1,15 +1,15 @@
 // =============================================================
 //  YTOmarPlus  —  تعديل يوتيوب
-//  المطور: عمر شوف
-//  Telegram: https://t.me/omarshof   (بدّل الرابط من المتغير أدناه)
+//  المطور: عمرشوف
+//  Telegram: https://t.me/o5252i   (بدّل الرابط من المتغير أدناه)
 //
-//  كود أصلي مكتوب من الصفر. جميع الحقوق للمطور: عمر شوف
+//  كود أصلي مكتوب من الصفر. جميع الحقوق للمطور: عمرشوف
 // =============================================================
 
 #import <UIKit/UIKit.h>
 
 // ---------- إعدادات المطور (عدّلها من هنا) ----------
-static NSString *const kDevName      = @"عمر شوف";
+static NSString *const kDevName      = @"عمرشوف";
 static NSString *const kTelegramUser = @"o5252i";                 // بدون @
 static NSString *const kTelegramURL  = @"https://t.me/o5252i";    // الرابط الكامل
 
@@ -31,7 +31,7 @@ static inline UIColor *OmarPurple(void) {
 }
 
 // =============================================================
-//  واجهة قائمة عمر شوف (شاشة واحدة تجمع كل المميزات)
+//  واجهة قائمة عمرشوف (شاشة واحدة تجمع كل المميزات)
 // =============================================================
 @interface OmarPlusMenuVC : UIViewController
 @end
@@ -44,7 +44,7 @@ static inline UIColor *OmarPurple(void) {
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = [UIColor colorWithRed:0.07 green:0.05 blue:0.12 alpha:1.0];
-    self.title = @"عمر شوف";
+    self.title = @"عمرشوف";
 
     // دعم اللغة العربية (من اليمين لليسار)
     self.view.semanticContentAttribute = UISemanticContentAttributeForceRightToLeft;
@@ -58,7 +58,7 @@ static inline UIColor *OmarPurple(void) {
 
     UILabel *titleLbl = [[UILabel alloc] init];
     titleLbl.translatesAutoresizingMaskIntoConstraints = NO;
-    titleLbl.text = @"عمر شوف";
+    titleLbl.text = @"عمرشوف";
     titleLbl.textColor = [UIColor whiteColor];
     titleLbl.font = [UIFont boldSystemFontOfSize:30];
     titleLbl.textAlignment = NSTextAlignmentCenter;
@@ -106,7 +106,7 @@ static inline UIColor *OmarPurple(void) {
     // ----- حقوق المطور بالأسفل -----
     UILabel *credit = [[UILabel alloc] init];
     credit.translatesAutoresizingMaskIntoConstraints = NO;
-    credit.text = @"جميع الحقوق محفوظة — عمر شوف";
+    credit.text = @"جميع الحقوق محفوظة — عمرشوف";
     credit.textColor = [UIColor colorWithWhite:1.0 alpha:0.5];
     credit.font = [UIFont systemFontOfSize:13];
     credit.textAlignment = NSTextAlignmentCenter;
@@ -196,7 +196,7 @@ static inline UIColor *OmarPurple(void) {
 @end
 
 // =============================================================
-//  حقن خانة واحدة داخل إعدادات يوتيوب تفتح قائمة عمر شوف
+//  حقن خانة واحدة داخل إعدادات يوتيوب تفتح قائمة عمرشوف
 //  (نعتمد على أن إعدادات يوتيوب UITableViewController؛
 //   نضيف زر في شريط التنقل يفتح القائمة — طريقة آمنة لا تكسر الجدول)
 // =============================================================
@@ -207,7 +207,7 @@ static inline UIColor *OmarPurple(void) {
 - (void)viewDidLoad {
     %orig;
     UIBarButtonItem *item =
-        [[UIBarButtonItem alloc] initWithTitle:@"عمر شوف"
+        [[UIBarButtonItem alloc] initWithTitle:@"عمرشوف"
                                          style:UIBarButtonItemStyleDone
                                         target:self
                                         action:@selector(omar_openMenu)];
