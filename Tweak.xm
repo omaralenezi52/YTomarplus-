@@ -27,6 +27,13 @@
 @interface YTMainAppVideoPlayerOverlayView : UIView
 @end
 
+@interface YTCommentSectionController : UIViewController
+@end
+
+@interface YTPivotBarItemView : UIView
+- (void)setRenderer:(id)renderer;
+@end
+
 // ---------- واجهة إعدادات يوتيوب الرسمية (لحقن قسم عمرشوف) ----------
 @interface YTSettingsSectionItem : NSObject
 + (instancetype)itemWithTitle:(NSString *)title
@@ -48,6 +55,15 @@
 
 @interface YTAppSettingsPresentationData : NSObject
 + (NSArray *)settingsCategoryOrder;
+@end
+
+@interface YTAppSettingsViewController : UIViewController
+- (void)setSectionItems:(NSArray *)sectionItems
+            forCategory:(NSInteger)category
+                  title:(NSString *)title
+                   icon:(id)icon
+       titleDescription:(NSString *)titleDescription
+           headerHidden:(BOOL)headerHidden;
 @end
 
 @interface YTSettingsSectionItemManager : NSObject
@@ -74,6 +90,8 @@ static NSString *const kKeyBackground = @"omar_background_play";
 static NSString *const kKeyHideShorts = @"omar_hide_shorts";
 static NSString *const kKeyNoAutoplay = @"omar_no_autoplay";
 static NSString *const kKeyHideButton = @"omar_hide_button";
+static NSString *const kKeyHideComments = @"omar_hide_comments";
+static NSString *const kKeyHideShortsTab = @"omar_hide_shorts_tab";
 
 static inline BOOL OmarPref(NSString *key) {
     return [[NSUserDefaults standardUserDefaults] boolForKey:key];
@@ -154,6 +172,18 @@ static inline UIColor *OmarPurple(void) {
                                      key:kKeyNoAutoplay
                                switchOut:nil
                                   action:@selector(toggleAutoplay:)];
+    // ----- صف: إخفاء التعليقات -----
+    UIView *commentsRow = [self rowWithTitle:@"إخفاء التعليقات"
+                                    subtitle:@"إخفاء قسم التعليقات أسفل الفيديو"
+                                         key:kKeyHideComments
+                                   switchOut:nil
+                                      action:@selector(toggleComments:)];
+    // ----- صف: إخفاء تبويب الشورتس -----
+    UIView *shortsTabRow = [self rowWithTitle:@"إخفاء تبويب الشورتس"
+                                     subtitle:@"إزالة زر Shorts من الشريط السفلي"
+                                          key:kKeyHideShortsTab
+                                    switchOut:nil
+                                       action:@selector(toggleShortsTab:)];
     // ----- صف: إخفاء الزر العائم -----
     UIView *btnRow = [self rowWithTitle:@"إخفاء الزر العائم"
                                subtitle:@"يظهر التأثير بعد إعادة فتح يوتيوب"
@@ -161,7 +191,7 @@ static inline UIColor *OmarPurple(void) {
                               switchOut:nil
                                  action:@selector(toggleHideButton:)];
 
-    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[adsRow, bgRow, shortsRow, autoRow, btnRow]];
+    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[adsRow, bgRow, shortsRow, autoRow, commentsRow, shortsTabRow, btnRow]];
     stack.translatesAutoresizingMaskIntoConstraints = NO;
     stack.axis = UILayoutConstraintAxisVertical;
     stack.spacing = 14;
@@ -203,7 +233,7 @@ static inline UIColor *OmarPurple(void) {
         [stack.topAnchor constraintEqualToAnchor:header.bottomAnchor constant:24],
         [stack.leadingAnchor constraintEqualToAnchor:g.leadingAnchor constant:16],
         [stack.trailingAnchor constraintEqualToAnchor:g.trailingAnchor constant:-16],
-        [stack.heightAnchor constraintEqualToConstant:420],
+        [stack.heightAnchor constraintEqualToConstant:532],
 
         [tgBtn.topAnchor constraintEqualToAnchor:stack.bottomAnchor constant:24],
         [tgBtn.leadingAnchor constraintEqualToAnchor:g.leadingAnchor constant:16],
@@ -267,10 +297,16 @@ static inline UIColor *OmarPurple(void) {
 - (void)toggleShorts:(UISwitch *)sw    { OmarSetPref(kKeyHideShorts, sw.on); }
 - (void)toggleAutoplay:(UISwitch *)sw  { OmarSetPref(kKeyNoAutoplay, sw.on); }
 - (void)toggleHideButton:(UISwitch *)sw { OmarSetPref(kKeyHideButton, sw.on); }
+- (void)toggleComments:(UISwitch *)sw   { OmarSetPref(kKeyHideComments, sw.on); }
+- (void)toggleShortsTab:(UISwitch *)sw  { OmarSetPref(kKeyHideShortsTab, sw.on); }
 
 - (void)openTelegram {
     [[UIApplication sharedApplication] openURL:[NSURL URLWithString:kTelegramURL]
                                        options:@{} completionHandler:nil];
+}
+
+- (void)omarDismiss {
+    [self dismissViewControllerAnimated:YES completion:nil];
 }
 @end
 
@@ -279,60 +315,55 @@ static inline UIColor *OmarPurple(void) {
 //  يعمل مع شاشة الإعدادات الحديثة (YTSettingsPickerViewController)
 // =============================================================
 
-// 1) نضيف فئة عمرشوف إلى ترتيب أقسام الإعدادات
-%hook YTAppSettingsPresentationData
-+ (NSArray *)settingsCategoryOrder {
-    NSArray *order = %orig;
-    if (![order isKindOfClass:[NSArray class]]) return order;
-    NSMutableArray *m = [order mutableCopy];
-    NSNumber *cat = @(OMAR_SETTINGS_CATEGORY);
-    if (![m containsObject:cat]) {
-        [m insertObject:cat atIndex:0];   // في الأعلى
-    }
-    return m;
-}
-%end
+// نحقن صف «عمرشوف» أعلى أول قسم يُبنى (قسم الحساب — تحت «الإعدادات العامة»)
+// هذه الدالة تُستدعى دائماً عند بناء الإعدادات، فالظهور مضمون
+static BOOL gOmarRowAddedThisOpen = NO;
 
-// 2) نملأ محتوى قسم عمرشوف عند بنائه
-%hook YTSettingsSectionItemManager
-- (void)updateSectionForCategory:(NSUInteger)category withEntry:(id)entry {
-    if (category == OMAR_SETTINGS_CATEGORY) {
-      @try {
-        YTSettingsViewController *settingsVC = nil;
-        @try { settingsVC = [self valueForKey:@"_settingsViewController"]; } @catch (__unused NSException *e) {}
-        if (!settingsVC) {
-            @try { settingsVC = [self valueForKey:@"settingsViewController"]; } @catch (__unused NSException *e) {}
-        }
-        if (!settingsVC) return;
-
-        YTSettingsSectionItem *item = [%c(YTSettingsSectionItem)
-            itemWithTitle:@"عمرشوف"
-            titleDescription:@"حذف الإعلانات، التشغيل بالخلفية والمزيد"
-            accessibilityIdentifier:nil
-            detailTextBlock:nil
-            selectBlock:^BOOL(id cell, NSUInteger index) {
-                OmarPlusMenuVC *menu = [[OmarPlusMenuVC alloc] init];
-                if (settingsVC.navigationController) {
-                    [settingsVC.navigationController pushViewController:menu animated:YES];
-                } else {
-                    UINavigationController *nav =
-                        [[UINavigationController alloc] initWithRootViewController:menu];
-                    nav.modalPresentationStyle = UIModalPresentationFormSheet;
-                    [settingsVC presentViewController:nav animated:YES completion:nil];
-                }
-                return YES;
-            }];
-
-        [settingsVC setSectionItems:@[item]
-                        forCategory:OMAR_SETTINGS_CATEGORY
-                              title:@"عمرشوف"
-                               icon:nil
-                   titleDescription:nil
-                       headerHidden:NO];
-      } @catch (__unused NSException *e) {}
-        return;
-    }
+%hook YTAppSettingsViewController
+- (void)viewWillAppear:(BOOL)animated {
     %orig;
+    gOmarRowAddedThisOpen = NO;   // نسمح بالحقن من جديد في كل فتح للإعدادات
+}
+
+- (void)setSectionItems:(NSArray *)sectionItems
+            forCategory:(NSInteger)category
+                  title:(NSString *)title
+                   icon:(id)icon
+       titleDescription:(NSString *)titleDescription
+           headerHidden:(BOOL)headerHidden {
+    @try {
+        if (!gOmarRowAddedThisOpen &&
+            [sectionItems isKindOfClass:[NSArray class]] && sectionItems.count > 0) {
+            gOmarRowAddedThisOpen = YES;
+            __weak typeof(self) weakSelf = self;
+            YTSettingsSectionItem *omar = [%c(YTSettingsSectionItem)
+                itemWithTitle:@"عمرشوف"
+                titleDescription:@"حذف الإعلانات، التشغيل بالخلفية والمزيد"
+                accessibilityIdentifier:nil
+                detailTextBlock:nil
+                selectBlock:^BOOL(id cell, NSUInteger index) {
+                    OmarPlusMenuVC *menu = [[OmarPlusMenuVC alloc] init];
+                    UINavigationController *nav = weakSelf.navigationController;
+                    if (nav) {
+                        [nav pushViewController:menu animated:YES];
+                    } else {
+                        UINavigationController *n =
+                            [[UINavigationController alloc] initWithRootViewController:menu];
+                        menu.navigationItem.leftBarButtonItem =
+                            [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                                                                          target:menu
+                                                                          action:@selector(omarDismiss)];
+                        n.modalPresentationStyle = UIModalPresentationFullScreen;
+                        [weakSelf presentViewController:n animated:YES completion:nil];
+                    }
+                    return YES;
+                }];
+            NSMutableArray *m = [sectionItems mutableCopy];
+            [m insertObject:omar atIndex:0];   // أعلى القسم الأول
+            sectionItems = m;
+        }
+    } @catch (__unused NSException *e) {}
+    %orig(sectionItems, category, title, icon, titleDescription, headerHidden);
 }
 %end
 
@@ -423,6 +454,36 @@ static inline UIColor *OmarPurple(void) {
 - (BOOL)isAutoplayEnabled {
     if (OmarPref(kKeyNoAutoplay)) return NO;
     return %orig;
+}
+%end
+
+// =============================================================
+//  ميزة: إخفاء التعليقات
+// =============================================================
+%hook YTCommentSectionController
+- (void)viewDidLoad {
+    %orig;
+    if (OmarPref(kKeyHideComments)) {
+        self.view.hidden = YES;
+    }
+}
+%end
+
+// =============================================================
+//  ميزة: إخفاء تبويب الشورتس من الشريط السفلي
+// =============================================================
+%hook YTPivotBarItemView
+- (void)setRenderer:(id)renderer {
+    %orig;
+    if (OmarPref(kKeyHideShortsTab)) {
+        @try {
+            NSString *d = [renderer description] ?: @"";
+            if ([d containsString:@"SHORTS"] || [d containsString:@"Shorts"] ||
+                [d containsString:@"shorts"]) {
+                self.hidden = YES;
+            }
+        } @catch (__unused NSException *e) {}
+    }
 }
 %end
 
@@ -531,7 +592,9 @@ static void OmarScheduleFloatingButton(void) {
     // الميزات الإضافية مطفأة افتراضياً
     if (![d objectForKey:kKeyHideShorts]) [d setBool:NO forKey:kKeyHideShorts];
     if (![d objectForKey:kKeyNoAutoplay]) [d setBool:NO forKey:kKeyNoAutoplay];
-    if (![d objectForKey:kKeyHideButton]) [d setBool:NO forKey:kKeyHideButton];
+    if (![d objectForKey:kKeyHideButton]) [d setBool:YES forKey:kKeyHideButton]; // مخفي افتراضياً
+    if (![d objectForKey:kKeyHideComments]) [d setBool:NO forKey:kKeyHideComments];
+    if (![d objectForKey:kKeyHideShortsTab]) [d setBool:NO forKey:kKeyHideShortsTab];
     [d synchronize];
 
     // نضمن ظهور زر عمرشوف العائم بعد إقلاع الواجهة (بدون هوكينق)
