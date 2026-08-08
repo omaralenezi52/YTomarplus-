@@ -7,6 +7,25 @@
 // =============================================================
 
 #import <UIKit/UIKit.h>
+#import <AVFoundation/AVFoundation.h>
+
+// ---------- تعريفات كلاسات يوتيوب المهووكة (لتفادي forward declaration) ----------
+@interface YTPlayerViewController : UIViewController
+- (void)loadWithPlayerTransition:(id)transition playbackData:(id)data;
+@end
+
+@interface YTMainAppVideoPlayerOverlayViewController : UIViewController
+- (void)setEligibleForAds:(BOOL)eligible;
+@end
+
+@interface YTAdsInnerCellController : UIViewController
+@end
+
+@interface YTPlayerView : UIView
+@end
+
+@interface YTMainAppVideoPlayerOverlayView : UIView
+@end
 
 // ---------- إعدادات المطور (عدّلها من هنا) ----------
 static NSString *const kDevName      = @"عمرشوف";
@@ -255,9 +274,8 @@ static inline UIColor *OmarPurple(void) {
 - (void)viewDidLoad {
     %orig;
     if (OmarPref(kKeyBlockAds)) {
-        UIView *v = [self valueForKey:@"view"];
-        v.hidden = YES;
-        v.frame = CGRectZero;
+        self.view.hidden = YES;
+        self.view.frame = CGRectZero;
     }
 }
 %end
