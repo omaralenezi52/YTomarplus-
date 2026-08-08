@@ -1,0 +1,9 @@
+Package: com.omarshof.ytomarplus
+Name: YTOmarPlus
+Version: 1.0.0
+Architecture: iphoneos-arm64
+Description: تعديل يوتيوب — حذف الإعلانات والتشغيل بالخلفية — بواجهة عربية
+Maintainer: عمر شوف
+Author: عمر شوف
+Section: Tweaks
+Depends: mobilesubstrate, firmware (>= 14.0)
