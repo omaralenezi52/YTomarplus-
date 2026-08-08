@@ -73,6 +73,7 @@ static NSString *const kKeyBlockAds   = @"omar_block_ads";
 static NSString *const kKeyBackground = @"omar_background_play";
 static NSString *const kKeyHideShorts = @"omar_hide_shorts";
 static NSString *const kKeyNoAutoplay = @"omar_no_autoplay";
+static NSString *const kKeyHideButton = @"omar_hide_button";
 
 static inline BOOL OmarPref(NSString *key) {
     return [[NSUserDefaults standardUserDefaults] boolForKey:key];
@@ -153,8 +154,14 @@ static inline UIColor *OmarPurple(void) {
                                      key:kKeyNoAutoplay
                                switchOut:nil
                                   action:@selector(toggleAutoplay:)];
+    // ----- صف: إخفاء الزر العائم -----
+    UIView *btnRow = [self rowWithTitle:@"إخفاء الزر العائم"
+                               subtitle:@"يظهر التأثير بعد إعادة فتح يوتيوب"
+                                    key:kKeyHideButton
+                              switchOut:nil
+                                 action:@selector(toggleHideButton:)];
 
-    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[adsRow, bgRow, shortsRow, autoRow]];
+    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[adsRow, bgRow, shortsRow, autoRow, btnRow]];
     stack.translatesAutoresizingMaskIntoConstraints = NO;
     stack.axis = UILayoutConstraintAxisVertical;
     stack.spacing = 14;
@@ -196,7 +203,7 @@ static inline UIColor *OmarPurple(void) {
         [stack.topAnchor constraintEqualToAnchor:header.bottomAnchor constant:24],
         [stack.leadingAnchor constraintEqualToAnchor:g.leadingAnchor constant:16],
         [stack.trailingAnchor constraintEqualToAnchor:g.trailingAnchor constant:-16],
-        [stack.heightAnchor constraintEqualToConstant:336],
+        [stack.heightAnchor constraintEqualToConstant:420],
 
         [tgBtn.topAnchor constraintEqualToAnchor:stack.bottomAnchor constant:24],
         [tgBtn.leadingAnchor constraintEqualToAnchor:g.leadingAnchor constant:16],
@@ -259,6 +266,7 @@ static inline UIColor *OmarPurple(void) {
 - (void)toggleBg:(UISwitch *)sw        { OmarSetPref(kKeyBackground, sw.on); }
 - (void)toggleShorts:(UISwitch *)sw    { OmarSetPref(kKeyHideShorts, sw.on); }
 - (void)toggleAutoplay:(UISwitch *)sw  { OmarSetPref(kKeyNoAutoplay, sw.on); }
+- (void)toggleHideButton:(UISwitch *)sw { OmarSetPref(kKeyHideButton, sw.on); }
 
 - (void)openTelegram {
     [[UIApplication sharedApplication] openURL:[NSURL URLWithString:kTelegramURL]
@@ -289,7 +297,13 @@ static inline UIColor *OmarPurple(void) {
 %hook YTSettingsSectionItemManager
 - (void)updateSectionForCategory:(NSUInteger)category withEntry:(id)entry {
     if (category == OMAR_SETTINGS_CATEGORY) {
-        YTSettingsViewController *settingsVC = [self valueForKey:@"_settingsViewController"];
+      @try {
+        YTSettingsViewController *settingsVC = nil;
+        @try { settingsVC = [self valueForKey:@"_settingsViewController"]; } @catch (__unused NSException *e) {}
+        if (!settingsVC) {
+            @try { settingsVC = [self valueForKey:@"settingsViewController"]; } @catch (__unused NSException *e) {}
+        }
+        if (!settingsVC) return;
 
         YTSettingsSectionItem *item = [%c(YTSettingsSectionItem)
             itemWithTitle:@"عمرشوف"
@@ -315,6 +329,7 @@ static inline UIColor *OmarPurple(void) {
                                icon:nil
                    titleDescription:nil
                        headerHidden:NO];
+      } @catch (__unused NSException *e) {}
         return;
     }
     %orig;
@@ -422,20 +437,25 @@ static UIWindow *gOmarFloatWindow = nil;
 
 @implementation OmarFloatController
 - (void)loadView {
-    self.view = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 66, 66)];
+    // حبة أنيقة قابلة للسحب
+    CGFloat w = 108, h = 44;
+    self.view = [[UIView alloc] initWithFrame:CGRectMake(0, 0, w, h)];
     self.view.backgroundColor = [UIColor clearColor];
 
     UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
-    btn.frame = CGRectMake(0, 0, 66, 66);
+    btn.frame = CGRectMake(0, 0, w, h);
     btn.backgroundColor = OmarPurple();
-    btn.layer.cornerRadius = 33;
-    btn.layer.shadowColor = [UIColor blackColor].CGColor;
-    btn.layer.shadowOpacity = 0.4;
-    btn.layer.shadowRadius = 6;
-    btn.layer.shadowOffset = CGSizeMake(0, 2);
-    [btn setTitle:@"عمر" forState:UIControlStateNormal];
+    btn.layer.cornerRadius = h / 2.0;
+    btn.layer.borderWidth = 1.5;
+    btn.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.35].CGColor;
+    btn.layer.shadowColor = OmarPurple().CGColor;
+    btn.layer.shadowOpacity = 0.55;
+    btn.layer.shadowRadius = 8;
+    btn.layer.shadowOffset = CGSizeMake(0, 3);
+    btn.alpha = 0.92;
+    [btn setTitle:@"⚙︎ عمرشوف" forState:UIControlStateNormal];
     [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    btn.titleLabel.font = [UIFont boldSystemFontOfSize:17];
+    btn.titleLabel.font = [UIFont boldSystemFontOfSize:15];
     [btn addTarget:self action:@selector(openMenu) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:btn];
 
@@ -474,6 +494,7 @@ static UIWindow *gOmarFloatWindow = nil;
 
 static void OmarTryShowFloatingButton(int attemptsLeft) {
     if (gOmarFloatWindow) return;
+    if (OmarPref(kKeyHideButton)) return;   // المستخدم أخفى الزر العائم
     UIWindowScene *scene = nil;
     for (UIScene *s in [UIApplication sharedApplication].connectedScenes) {
         if ([s isKindOfClass:[UIWindowScene class]] &&
@@ -490,7 +511,7 @@ static void OmarTryShowFloatingButton(int attemptsLeft) {
         return;
     }
     gOmarFloatWindow = [[UIWindow alloc] initWithWindowScene:scene];
-    gOmarFloatWindow.frame = CGRectMake(18, 140, 66, 66);
+    gOmarFloatWindow.frame = CGRectMake(16, 160, 108, 44);
     gOmarFloatWindow.windowLevel = UIWindowLevelAlert + 10;
     gOmarFloatWindow.backgroundColor = [UIColor clearColor];
     gOmarFloatWindow.rootViewController = [[OmarFloatController alloc] init];
@@ -510,6 +531,7 @@ static void OmarScheduleFloatingButton(void) {
     // الميزات الإضافية مطفأة افتراضياً
     if (![d objectForKey:kKeyHideShorts]) [d setBool:NO forKey:kKeyHideShorts];
     if (![d objectForKey:kKeyNoAutoplay]) [d setBool:NO forKey:kKeyNoAutoplay];
+    if (![d objectForKey:kKeyHideButton]) [d setBool:NO forKey:kKeyHideButton];
     [d synchronize];
 
     // نضمن ظهور زر عمرشوف العائم بعد إقلاع الواجهة (بدون هوكينق)
