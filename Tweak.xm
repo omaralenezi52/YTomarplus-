@@ -40,6 +40,7 @@
 - (void)setSectionItems:(NSArray *)sectionItems
             forCategory:(NSInteger)category
                   title:(NSString *)title
+                   icon:(id)icon
        titleDescription:(NSString *)titleDescription
            headerHidden:(BOOL)headerHidden;
 - (void)reloadData;
@@ -311,6 +312,7 @@ static inline UIColor *OmarPurple(void) {
         [settingsVC setSectionItems:@[item]
                         forCategory:OMAR_SETTINGS_CATEGORY
                               title:@"عمرشوف"
+                               icon:nil
                    titleDescription:nil
                        headerHidden:NO];
         return;
